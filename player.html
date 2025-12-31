@@ -1,20 +1,1085 @@
 <!DOCTYPE html>
+
 <html lang="en">
+
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Player</title>
-<link rel="stylesheet" href="css/styles.css">
+
+    <meta charset="utf-8">
+
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+
+    <title>{{ movie.title }} — Player</title>
+
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+
+    <style>
+
+        :root {
+
+            --bg-dark: #000000;
+
+            --netflix-red: #e50914;
+
+            --text-main: #ffffff;
+
+            --text-muted: #b3b3b3;
+
+            --panel-glass: rgba(15, 15, 15, 0.95);
+
+            --transition-speed: 0.4s;
+
+        }
+
+
+
+        * { box-sizing: border-box; }
+
+
+
+        html, body {
+
+            height: 100%;
+
+            margin: 0;
+
+            background: var(--bg-dark);
+
+            color: var(--text-main);
+
+            font-family: 'Inter', sans-serif;
+
+            overflow: hidden;
+
+            -webkit-font-smoothing: antialiased;
+
+        }
+
+
+
+        .player-root {
+
+            height: 100%;
+
+            display: flex;
+
+            flex-direction: column;
+
+            background: #000;
+
+            position: relative;
+
+        }
+
+
+
+        .video-wrap {
+
+            position: relative;
+
+            flex: 1;
+
+            display: flex;
+
+            align-items: center;
+
+            justify-content: center;
+
+            background: #000;
+
+            overflow: hidden;
+
+        }
+
+
+
+        video {
+
+            width: 100%;
+
+            height: 100%;
+
+            object-fit: contain;
+
+        }
+
+
+
+        /* UI Overlay Logic */
+
+        .overlay {
+
+            position: absolute;
+
+            inset: 0;
+
+            background: linear-gradient(0deg, rgba(0,0,0,0.8) 0%, transparent 20%, transparent 80%, rgba(0,0,0,0.6) 100%);
+
+            z-index: 10;
+
+            transition: opacity var(--transition-speed) ease, visibility var(--transition-speed);
+
+            display: flex;
+
+            flex-direction: column;
+
+            justify-content: space-between;
+
+            opacity: 1;
+
+            visibility: visible;
+
+        }
+
+
+
+        .overlay.hidden {
+
+            opacity: 0;
+
+            visibility: hidden;
+
+            cursor: none;
+
+        }
+
+
+
+        .topbar {
+
+            padding: 40px 50px;
+
+            display: flex;
+
+            align-items: center;
+
+            gap: 24px;
+
+        }
+
+
+
+        .back-btn {
+
+            background: none;
+
+            border: none;
+
+            color: white;
+
+            font-size: 32px;
+
+            cursor: pointer;
+
+            padding: 0;
+
+            display: flex;
+
+            align-items: center;
+
+        }
+
+
+
+        .title { font-size: 24px; font-weight: 700; }
+
+
+
+        .controls {
+
+            padding: 40px 50px;
+
+            display: flex;
+
+            flex-direction: column;
+
+            gap: 20px;
+
+        }
+
+
+
+        .progress-wrapper {
+
+            display: flex;
+
+            align-items: center;
+
+            height: 20px;
+
+        }
+
+
+
+        .progress-container {
+
+            flex: 1;
+
+            height: 4px;
+
+            background: rgba(255,255,255,0.25);
+
+            border-radius: 2px;
+
+            cursor: pointer;
+
+            position: relative;
+
+            transition: height 0.2s;
+
+        }
+
+        .progress-container:hover { height: 6px; }
+
+
+
+        .buffer {
+
+            position: absolute;
+
+            height: 100%;
+
+            background: rgba(255,255,255,0.2);
+
+            border-radius: 2px;
+
+        }
+
+        .bar {
+
+            position: absolute;
+
+            height: 100%;
+
+            background: var(--netflix-red);
+
+            border-radius: 2px;
+
+            width: 0%;
+
+        }
+
+        .bar::after {
+
+            content: '';
+
+            position: absolute;
+
+            right: -6px;
+
+            top: 50%;
+
+            transform: translateY(-50%);
+
+            width: 12px;
+
+            height: 12px;
+
+            background: var(--netflix-red);
+
+            border-radius: 50%;
+
+            opacity: 0;
+
+            transition: opacity 0.2s;
+
+        }
+
+        .progress-container:hover .bar::after { opacity: 1; }
+
+
+
+        .controls-row {
+
+            display: flex;
+
+            align-items: center;
+
+            justify-content: space-between;
+
+        }
+
+        .controls-group { display: flex; align-items: center; gap: 25px; }
+
+
+
+        .btn {
+
+            background: none;
+
+            border: none;
+
+            color: #fff;
+
+            cursor: pointer;
+
+            padding: 0;
+
+            display: flex;
+
+            align-items: center;
+
+            justify-content: center;
+
+        }
+
+        .btn svg { width: 32px; height: 32px; fill: currentColor; }
+
+       
+
+        .time { font-size: 14px; font-weight: 500; min-width: 100px; color: #ddd; }
+
+
+
+        /* Panels */
+
+        .side-panel {
+
+            position: absolute;
+
+            right: -400px;
+
+            top: 0;
+
+            bottom: 0;
+
+            width: 350px;
+
+            background: var(--panel-glass);
+
+            backdrop-filter: blur(25px);
+
+            z-index: 100;
+
+            transition: right 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+
+            padding: 40px 30px;
+
+            display: flex;
+
+            flex-direction: column;
+
+            box-shadow: -10px 0 30px rgba(0,0,0,0.5);
+
+        }
+
+        .side-panel.open { right: 0; }
+
+
+
+        .panel-header-row {
+
+            display: flex;
+
+            justify-content: space-between;
+
+            align-items: center;
+
+            margin-bottom: 25px;
+
+        }
+
+
+
+        .panel-header {
+
+            font-size: 18px;
+
+            font-weight: 700;
+
+            text-transform: uppercase;
+
+            letter-spacing: 1px;
+
+            margin: 0;
+
+        }
+
+
+
+        .close-panel {
+
+            background: none;
+
+            border: none;
+
+            color: white;
+
+            cursor: pointer;
+
+            padding: 5px;
+
+        }
+
+
+
+        .list-items {
+
+            overflow-y: auto;
+
+            flex: 1;
+
+        }
+
+       
+
+        .item {
+
+            padding: 14px 18px;
+
+            border-radius: 4px;
+
+            cursor: pointer;
+
+            font-size: 14px;
+
+            margin-bottom: 5px;
+
+            background: rgba(255,255,255,0.05);
+
+            transition: background 0.2s;
+
+            display: flex;
+
+            justify-content: space-between;
+
+            align-items: center;
+
+        }
+
+        .item:hover { background: rgba(255,255,255,0.15); }
+
+        .item.active {
+
+            background: rgba(229, 9, 20, 0.3);
+
+            border-left: 3px solid var(--netflix-red);
+
+            font-weight: 700;
+
+        }
+
+
+
+        .track-category {
+
+            font-size: 12px;
+
+            color: var(--text-muted);
+
+            margin: 15px 0 10px 0;
+
+            letter-spacing: 1px;
+
+            font-weight: 600;
+
+        }
+
+
+
+        .volume-group { display: flex; align-items: center; gap: 10px; }
+
+        .volume-slider {
+
+            width: 0;
+
+            height: 3px;
+
+            -webkit-appearance: none;
+
+            appearance: none;
+
+            background: rgba(255,255,255,0.3);
+
+            border-radius: 2px;
+
+            transition: width 0.3s ease;
+
+            outline: none;
+
+        }
+
+        .volume-group:hover .volume-slider { width: 70px; }
+
+        .volume-slider::-webkit-slider-thumb {
+
+            -webkit-appearance: none;
+
+            appearance: none;
+
+            width: 10px;
+
+            height: 10px;
+
+            background: white;
+
+            border-radius: 50%;
+
+            cursor: pointer;
+
+        }
+
+
+
+        @media (max-width: 768px) {
+
+            .side-panel { width: 100%; right: -100%; }
+
+            .topbar, .controls { padding: 20px; }
+
+        }
+
+    </style>
+
 </head>
-<body data-folder="">
+
+<body data-folder="{{ folder }}" data-videos='{{ videos|tojson }}'>
+
+
+
 <div class="player-root" id="container">
-  <div class="video-wrap">
-    <video id="player" controls autoplay></video>
-    <div class="side-panel" id="episodesPanel">
-      <div class="list-items" id="episodesList"></div>
+
+    <div class="video-wrap" id="videoArea">
+
+        <video id="player" preload="metadata" playsinline></video>
+
+
+
+        <div class="overlay" id="uiOverlay">
+
+            <div class="topbar">
+
+                <button class="back-btn" onclick="window.history.back()">
+
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+
+                </button>
+
+                <div class="title">{{ movie.title }}</div>
+
+            </div>
+
+
+
+            <div class="controls">
+
+                <div class="progress-wrapper">
+
+                    <div class="progress-container" id="progress">
+
+                        <div class="buffer" id="buffer"></div>
+
+                        <div class="bar" id="bar"></div>
+
+                    </div>
+
+                </div>
+
+               
+
+                <div class="controls-row">
+
+                    <div class="controls-group">
+
+                        <button class="btn" id="playBtn">
+
+                            <svg viewBox="0 0 24 24" id="playIcon"><path d="M8 5v14l11-7z"/></svg>
+
+                        </button>
+
+                        <button class="btn" id="revBtn">
+
+                            <svg viewBox="0 0 24 24"><path d="M12.5 8c-2.65 0-5.05 1.08-6.71 2.82L4 9v6h6l-2.35-2.35c1.27-1.27 3.02-2.05 4.95-2.05 3.87 0 7 3.13 7 7h2c0-4.97-4.03-9-9-9z"/></svg>
+
+                        </button>
+
+                        <button class="btn" id="fwdBtn">
+
+                            <svg viewBox="0 0 24 24"><path d="M11.5 8c2.65 0 5.05 1.08 6.71 2.82L20 9v6h-6l2.35-2.35c-1.27-1.27-3.02-2.05-4.95-2.05-3.87 0-7 3.13-7 7h-2c0-4.97 4.03-9 9-9z"/></svg>
+
+                        </button>
+
+                        <div class="time" id="time">00:00 / 00:00</div>
+
+                    </div>
+
+                   
+
+                    <div class="controls-group">
+
+                        <div class="volume-group">
+
+                            <button class="btn" id="muteBtn">
+
+                                <svg viewBox="0 0 24 24" id="volIcon"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg>
+
+                            </button>
+
+                            <input type="range" class="volume-slider" id="volSlider" min="0" max="1" step="0.05" value="1">
+
+                        </div>
+
+                        <button class="btn" id="trackBtn">
+
+                            <svg viewBox="0 0 24 24"><path d="M19 4H5c-1.11 0-2 .9-2 2v12c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-2 7h-4V9h4v2zm-6 4H7v-2h4v2zm0-4H7V9h4v2zm6 4h-4v-2h4v2z"/></svg>
+
+                        </button>
+
+                        <button class="btn" id="listBtn">
+
+                            <svg viewBox="0 0 24 24"><path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zm0-8v2h14V7H7z"/></svg>
+
+                        </button>
+
+                        <button class="btn" id="fsBtn">
+
+                            <svg viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
+
+                        </button>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+
+        <!-- Side Panels -->
+
+        <div class="side-panel" id="episodesPanel">
+
+            <div class="panel-header-row">
+
+                <div class="panel-header">Episodes</div>
+
+                <button class="close-panel" onclick="document.getElementById('episodesPanel').classList.remove('open')">
+
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+
+                </button>
+
+            </div>
+
+            <div class="list-items" id="episodesList"></div>
+
+        </div>
+
+
+
+        <div class="side-panel" id="tracksPanel">
+
+            <div class="panel-header-row">
+
+                <div class="panel-header">Audio & Subtitles</div>
+
+                <button class="close-panel" onclick="document.getElementById('tracksPanel').classList.remove('open')">
+
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+
+                </button>
+
+            </div>
+
+            <div class="list-items">
+
+                <div class="track-category">AUDIO</div>
+
+                <div id="audioTracks"></div>
+
+               
+
+                <div class="track-category">SUBTITLES</div>
+
+                <div id="subtitleTracks"></div>
+
+            </div>
+
+        </div>
+
     </div>
-  </div>
+
 </div>
-<script src="js/player.js"></script>
+
+
+
+<script>
+
+(function() {
+
+    const player = document.getElementById('player');
+
+    const uiOverlay = document.getElementById('uiOverlay');
+
+    const playBtn = document.getElementById('playBtn');
+
+    const playIcon = document.getElementById('playIcon');
+
+    const bar = document.getElementById('bar');
+
+    const bufferBar = document.getElementById('buffer');
+
+    const progress = document.getElementById('progress');
+
+    const timeEl = document.getElementById('time');
+
+    const volSlider = document.getElementById('volSlider');
+
+    const epPanel = document.getElementById('episodesPanel');
+
+    const trPanel = document.getElementById('tracksPanel');
+
+    const epList = document.getElementById('episodesList');
+
+   
+
+    const folder = document.body.dataset.folder;
+
+    let videos = JSON.parse(document.body.dataset.videos || '[]');
+
+
+
+    videos.sort((a, b) => a.localeCompare(b, undefined, {numeric: true, sensitivity: 'base'}));
+
+
+
+    let currentIdx = 0;
+
+    let uiTimeout;
+
+
+
+    const pausePath = '<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>';
+
+    const playPath = '<path d="M8 5v14l11-7z"/>';
+
+
+
+    function loadVideo(index) {
+
+        if (!videos.length) return;
+
+        currentIdx = index;
+
+        player.src = `/video/${encodeURIComponent(folder)}/${encodeURIComponent(videos[index])}`;
+
+        player.load();
+
+        renderEpisodes();
+
+    }
+
+
+
+    function renderEpisodes() {
+
+        epList.innerHTML = '';
+
+        videos.forEach((v, i) => {
+
+            const div = document.createElement('div');
+
+            div.className = `item ${i === currentIdx ? 'active' : ''}`;
+
+            div.innerText = v.replace(/\.[^/.]+$/, "");
+
+            div.onclick = () => { loadVideo(i); player.play(); epPanel.classList.remove('open'); };
+
+            epList.appendChild(div);
+
+        });
+
+    }
+
+
+
+    // Enhanced track detection
+
+    function updateTracks() {
+
+        const audioContainer = document.getElementById('audioTracks');
+
+        const subContainer = document.getElementById('subtitleTracks');
+
+       
+
+        audioContainer.innerHTML = '';
+
+        subContainer.innerHTML = '';
+
+
+
+        // Standard Audio Tracks (Native API)
+
+        const audioTracks = player.audioTracks;
+
+        if (audioTracks && audioTracks.length > 0) {
+
+            for (let i = 0; i < audioTracks.length; i++) {
+
+                const track = audioTracks[i];
+
+                const div = document.createElement('div');
+
+                div.className = `item ${track.enabled ? 'active' : ''}`;
+
+                div.innerText = track.label || track.language || `Audio Track ${i + 1}`;
+
+                div.onclick = () => {
+
+                    for (let j = 0; j < audioTracks.length; j++) {
+
+                        audioTracks[j].enabled = (i === j);
+
+                    }
+
+                    updateTracks();
+
+                };
+
+                audioContainer.appendChild(div);
+
+            }
+
+        } else {
+
+            // Fallback for files where internal metadata isn't fully exposed to JS
+
+            const div = document.createElement('div');
+
+            div.className = 'item active';
+
+            div.innerText = 'Primary Audio Track';
+
+            audioContainer.appendChild(div);
+
+           
+
+            const tip = document.createElement('div');
+
+            tip.style.fontSize = '11px';
+
+            tip.style.color = '#888';
+
+            tip.style.marginTop = '10px';
+
+            tip.style.padding = '0 18px';
+
+            tip.innerText = 'Note: Your browser might not support switching multi-audio streams directly in the web player.';
+
+            audioContainer.appendChild(tip);
+
+        }
+
+
+
+        // Subtitle Tracks
+
+        const textTracks = player.textTracks;
+
+        const offDiv = document.createElement('div');
+
+        let allOff = true;
+
+        for (let i = 0; i < textTracks.length; i++) {
+
+            if (textTracks[i].mode === 'showing') allOff = false;
+
+        }
+
+        offDiv.className = `item ${allOff ? 'active' : ''}`;
+
+        offDiv.innerText = 'None';
+
+        offDiv.onclick = () => {
+
+            for (let i = 0; i < textTracks.length; i++) textTracks[i].mode = 'disabled';
+
+            updateTracks();
+
+        };
+
+        subContainer.appendChild(offDiv);
+
+
+
+        if (textTracks.length > 0) {
+
+            for (let i = 0; i < textTracks.length; i++) {
+
+                const track = textTracks[i];
+
+                const div = document.createElement('div');
+
+                div.className = `item ${track.mode === 'showing' ? 'active' : ''}`;
+
+                div.innerText = track.label || track.language || `Subtitle ${i + 1}`;
+
+                div.onclick = () => {
+
+                    for (let j = 0; j < textTracks.length; j++) {
+
+                        textTracks[j].mode = (i === j ? 'showing' : 'disabled');
+
+                    }
+
+                    updateTracks();
+
+                };
+
+                subContainer.appendChild(div);
+
+            }
+
+        }
+
+    }
+
+
+
+    function showUI() {
+
+        uiOverlay.classList.remove('hidden');
+
+        clearTimeout(uiTimeout);
+
+        if (!player.paused && !epPanel.classList.contains('open') && !trPanel.classList.contains('open')) {
+
+            uiTimeout = setTimeout(() => {
+
+                uiOverlay.classList.add('hidden');
+
+            }, 3000);
+
+        }
+
+    }
+
+
+
+    window.addEventListener('mousemove', showUI);
+
+    window.addEventListener('touchstart', showUI);
+
+    player.onpause = showUI;
+
+    player.onplay = showUI;
+
+
+
+    playBtn.onclick = () => player.paused ? player.play() : player.pause();
+
+    document.getElementById('revBtn').onclick = () => player.currentTime -= 10;
+
+    document.getElementById('fwdBtn').onclick = () => player.currentTime += 10;
+
+
+
+    player.onplay = () => { playIcon.innerHTML = pausePath; showUI(); };
+
+    player.onpause = () => { playIcon.innerHTML = playPath; showUI(); };
+
+
+
+    player.ontimeupdate = () => {
+
+        const pct = (player.currentTime / player.duration) * 100 || 0;
+
+        bar.style.width = pct + '%';
+
+        if (player.buffered.length) {
+
+            const buf = (player.buffered.end(player.buffered.length - 1) / player.duration) * 100;
+
+            bufferBar.style.width = buf + '%';
+
+        }
+
+        timeEl.innerText = `${formatTime(player.currentTime)} / ${formatTime(player.duration)}`;
+
+    };
+
+
+
+    progress.onclick = (e) => {
+
+        const rect = progress.getBoundingClientRect();
+
+        player.currentTime = ((e.clientX - rect.left) / rect.width) * player.duration;
+
+    };
+
+
+
+    volSlider.oninput = (e) => { player.volume = e.target.value; player.muted = false; };
+
+
+
+    document.getElementById('listBtn').onclick = (e) => {
+
+        e.stopPropagation();
+
+        trPanel.classList.remove('open');
+
+        epPanel.classList.toggle('open');
+
+        showUI();
+
+    };
+
+
+
+    document.getElementById('trackBtn').onclick = (e) => {
+
+        e.stopPropagation();
+
+        epPanel.classList.remove('open');
+
+        trPanel.classList.toggle('open');
+
+        updateTracks();
+
+        showUI();
+
+    };
+
+
+
+    document.getElementById('fsBtn').onclick = () => {
+
+        if (!document.fullscreenElement) document.getElementById('container').requestFullscreen();
+
+        else document.exitFullscreen();
+
+    };
+
+
+
+    function formatTime(sec) {
+
+        if (!isFinite(sec)) return '00:00';
+
+        const h = Math.floor(sec / 3600);
+
+        const m = Math.floor((sec % 3600) / 60);
+
+        const s = Math.floor(sec % 60);
+
+        return (h > 0 ? `${h}:` : '') + `${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+
+    }
+
+
+
+    loadVideo(0);
+
+    showUI();
+
+})();
+
+</script>
+
 </body>
+
 </html>
