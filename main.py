@@ -2,6 +2,7 @@ from flask import Flask, render_template, abort
 import os
 import json
 import requests
+import re
 
 app = Flask(__name__)
 
@@ -10,6 +11,7 @@ MEDIA_FOLDER = 'Media'
 TMDB_API_KEY = 'b1cfd8833332e9364b059105e2b79d16'
 BASE_IMG_URL = "https://image.tmdb.org/t/p/w500"
 BASE_BACKDROP_URL = "https://image.tmdb.org/t/p/original"
+
 
 def get_movie_data(folder_name):
     search_query = folder_name.replace('_', ' ').replace('.', ' ')
@@ -22,12 +24,19 @@ def get_movie_data(folder_name):
             folder_path = os.path.join(MEDIA_FOLDER, folder_name)
             external_videos = []
 
-            # Use log.json if exists
             log_json_path = os.path.join(folder_path, 'log.json')
             if os.path.exists(log_json_path):
                 with open(log_json_path, 'r', encoding='utf-8') as fh:
                     data = json.load(fh)
-                    external_videos = data.get('videos', [])
+                    for v in data.get('videos', []):
+                        url = v.get('url') if isinstance(v, dict) else v
+                        title = v.get('title') if isinstance(v, dict) else os.path.basename(url)
+                        if "drive.google.com" in url:
+                            match = re.search(r'/d/([a-zA-Z0-9_-]+)', url)
+                            if match:
+                                file_id = match.group(1)
+                                url = f"https://drive.google.com/uc?export=download&id={file_id}"
+                        external_videos.append({"title": title, "url": url})
 
             has_video = len(external_videos) > 0
             return {
@@ -44,6 +53,7 @@ def get_movie_data(folder_name):
         print(f"Error fetching data for {folder_name}: {e}")
     return None
 
+
 @app.route('/')
 def home():
     if not os.path.exists(MEDIA_FOLDER):
@@ -57,17 +67,24 @@ def home():
             movie_list.append(data)
     return render_template('index.html', movies=movie_list)
 
+
 @app.route('/player/<folder_name>')
 def player(folder_name):
     folder_path = os.path.join(MEDIA_FOLDER, folder_name)
     if not os.path.exists(folder_path):
         abort(404)
 
-    movie_meta = get_movie_data(folder_name) or {"title": folder_name, "poster": "", "backdrop": "", "overview": "", "external_videos": []}
+    movie_meta = get_movie_data(folder_name) or {
+        "title": folder_name,
+        "poster": "",
+        "backdrop": "",
+        "overview": "",
+        "external_videos": []
+    }
 
-    # Pass videos array to template
     videos = movie_meta.get('external_videos', [])
     return render_template('player.html', folder=folder_name, videos=videos, movie=movie_meta)
+
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
