@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Netflix Clone Player</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --netflix-red: #e50914;
+            --bg-dark: #141414;
+            --overlay-bg: rgba(0, 0, 0, 0.9);
+            --text-main: #ffffff;
+            --text-muted: #b3b3b3;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #000;
+            color: var(--text-main);
+            font-family: 'Roboto', sans-serif;
+            overflow: hidden;
+        }
+
+        .player-container {
+            position: relative;
+            width: 100%;
+            height: 100vh;
+            background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        video {
+            width: 100%;
+            height: 100%;
+            max-height: 100vh;
+            outline: none;
+        }
+
+        /* UI Overlays */
+        .ui-layer {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(0deg, rgba(0,0,0,0.8) 0%, transparent 20%, transparent 80%, rgba(0,0,0,0.8) 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 40px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        .player-container:hover .ui-layer, .ui-layer.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .top-bar {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            pointer-events: auto;
+        }
+
+        .info-pane h1 { margin: 0; font-size: 24px; font-weight: 500; }
+        .info-pane p { margin: 5px 0 0; color: var(--text-muted); font-size: 16px; }
+
+        /* Bottom Controls */
+        .bottom-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            pointer-events: auto;
+        }
+
+        .progress-area {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .progress-bar {
+            flex: 1;
+            height: 4px;
+            background: rgba(255,255,255,0.3);
+            position: relative;
+            cursor: pointer;
+        }
+
+        .progress-filled {
+            height: 100%;
+            background: var(--netflix-red);
+            width: 0%;
+        }
+
+        .control-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .left-controls, .right-controls { display: flex; align-items: center; gap: 30px; }
+
+        .icon-btn {
+            background: none;
+            border: none;
+            color: white;
+            cursor: pointer;
+            font-size: 22px;
+        }
+
+        /* Episode Modal */
+        .episode-modal {
+            position: fixed;
+            right: -400px;
+            top: 0;
+            width: 380px;
+            height: 100vh;
+            background: var(--overlay-bg);
+            z-index: 100;
+            transition: right 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            padding: 40px 20px;
+            overflow-y: auto;
+            border-left: 1px solid #333;
+        }
+
+        .episode-modal.open { right: 0; }
+
+        .episode-card {
+            display: flex;
+            gap: 15px;
+            padding: 15px;
+            border-bottom: 1px solid #333;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .episode-card:hover { background: rgba(255,255,255,0.1); }
+        .episode-card.active { border-left: 4px solid var(--netflix-red); background: rgba(255,255,255,0.05); }
+
+        .ep-info h4 { margin: 0; font-size: 14px; color: #fff; }
+
+        /* Loading Overlay */
+        #loading-screen {
+            position: fixed;
+            inset: 0;
+            background: #141414;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+            font-size: 24px;
+            color: var(--netflix-red);
+            font-weight: bold;
+            transition: opacity 0.5s ease;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="loading-screen">NETFLIX</div>
+
+    <div class="player-container" id="container">
+        <video id="main-video" preload="auto"></video>
+
+        <div class="ui-layer" id="ui-layer">
+            <div class="top-bar">
+                <button class="icon-btn" onclick="window.location.href='/'">←</button>
+                <div class="info-pane">
+                    <h1 id="show-title">{{ movie.title if movie else 'Modern Player' }}</h1>
+                    <p id="current-ep-label">Episode --</p>
+                </div>
+            </div>
+
+            <div class="bottom-controls">
+                <div class="progress-area">
+                    <div class="progress-bar" id="progress-bar">
+                        <div class="progress-filled" id="progress-filled"></div>
+                    </div>
+                    <span id="time-display" style="font-size: 14px; width: 80px;">0:00</span>
+                </div>
+
+                <div class="control-row">
+                    <div class="left-controls">
+                        <button class="icon-btn" id="play-pause">▶</button>
+                        <button class="icon-btn" id="back-10">↺ 10</button>
+                        <button class="icon-btn" id="fwd-10">10 ↻</button>
+                    </div>
+                    <div class="right-controls">
+                        <button class="icon-btn" id="episodes-toggle">Episodes</button>
+                        <button class="icon-btn" id="fs-toggle">⛶</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="episode-modal" id="ep-modal">
+        <h2 style="margin-top: 0;">Episodes</h2>
+        <div id="ep-list"></div>
+    </div>
+
+    <script>
+        /**
+         * JSON parsing of Jinja2 variables. 
+         * This clears IDE syntax errors while maintaining Flask functionality.
+         */
+        let playlist = [];
+        let defaultIndex = 0;
+
+        try {
+            // Flask fills these values when rendering the template
+            playlist = JSON.parse('{{ videos | tojson | safe }}');
+            defaultIndex = parseInt('{{ default_index }}') || 0;
+        } catch (e) {
+            console.error("Data injection error:", e);
+        }
+
+        const video = document.getElementById('main-video');
+        const epListUI = document.getElementById('ep-list');
+        const epModal = document.getElementById('ep-modal');
+        const playBtn = document.getElementById('play-pause');
+        const progFilled = document.getElementById('progress-filled');
+        const progBar = document.getElementById('progress-bar');
+        const timeDisplay = document.getElementById('time-display');
+        const epLabel = document.getElementById('current-ep-label');
+        const loadingScreen = document.getElementById('loading-screen');
+
+        let currentIndex = 0;
+
+        function init() {
+            if (playlist && playlist.length > 0) {
+                renderEpisodeList();
+                loadEpisode(defaultIndex);
+                
+                // Fade out Netflix loading screen
+                setTimeout(() => {
+                    loadingScreen.style.opacity = '0';
+                    setTimeout(() => { loadingScreen.style.display = 'none'; }, 500);
+                }, 1000);
+            } else {
+                loadingScreen.textContent = "No Media Found";
+            }
+        }
+
+        function loadEpisode(index) {
+            if (!playlist[index]) return;
+            
+            currentIndex = index;
+            const ep = playlist[index];
+            
+            // Set source and play
+            video.src = ep.url;
+            video.play().catch(() => {
+                playBtn.textContent = '▶';
+            });
+            
+            epLabel.textContent = ep.title;
+            playBtn.textContent = '⏸';
+            renderEpisodeList();
+            epModal.classList.remove('open');
+        }
+
+        function renderEpisodeList() {
+            epListUI.innerHTML = '';
+            playlist.forEach((ep, i) => {
+                const div = document.createElement('div');
+                div.className = `episode-card ${i === currentIndex ? 'active' : ''}`;
+                div.innerHTML = `<div class="ep-info"><h4>${ep.title}</h4></div>`;
+                div.onclick = () => loadEpisode(i);
+                epListUI.appendChild(div);
+            });
+        }
+
+        // --- Controls ---
+        playBtn.onclick = () => video.paused ? video.play() : video.pause();
+        video.onplay = () => playBtn.textContent = '⏸';
+        video.onpause = () => playBtn.textContent = '▶';
+
+        video.ontimeupdate = () => {
+            if (video.duration) {
+                const pct = (video.currentTime / video.duration) * 100;
+                progFilled.style.width = pct + '%';
+                timeDisplay.textContent = formatTime(video.currentTime);
+            }
+        };
+
+        progBar.onclick = (e) => {
+            const rect = progBar.getBoundingClientRect();
+            video.currentTime = ((e.clientX - rect.left) / rect.width) * video.duration;
+        };
+
+        document.getElementById('episodes-toggle').onclick = (e) => {
+            e.stopPropagation();
+            epModal.classList.toggle('open');
+        };
+
+        document.getElementById('fs-toggle').onclick = () => {
+            if (!document.fullscreenElement) document.getElementById('container').requestFullscreen();
+            else document.exitFullscreen();
+        };
+
+        document.getElementById('back-10').onclick = () => video.currentTime -= 10;
+        document.getElementById('fwd-10').onclick = () => video.currentTime += 10;
+
+        function formatTime(s) {
+            if (isNaN(s)) return "0:00";
+            const m = Math.floor(s / 60);
+            const sec = Math.floor(s % 60);
+            return `${m}:${sec.toString().padStart(2, '0')}`;
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>

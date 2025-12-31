@@ -227,6 +227,17 @@
                 slideshow.addEventListener('mouseenter', () => { if (timer) clearInterval(timer); });
                 slideshow.addEventListener('mouseleave', () => resetTimer());
             }
+
+            // Update play buttons to link to the correct Flask route
+            document.querySelectorAll('.btn-play').forEach(button => {
+                button.addEventListener('click', (event) => {
+                    const folderName = button.getAttribute('href').split('/player/')[1];
+                    if (folderName) {
+                        window.location.href = `/video_player?folder=${folderName}`;
+                    }
+                    event.preventDefault();
+                });
+            });
         });
 
         function openModalFromElement(el) {
