@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reading {{ current_chapter }} | RYUJIN</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #0a0a0a;
+            --accent: #E50914;
+            --ui-bg: rgba(20, 20, 20, 0.95);
+        }
+
+        body {
+            margin: 0;
+            background-color: var(--bg-dark);
+            color: white;
+            font-family: 'Inter', sans-serif;
+            overflow-x: hidden;
+        }
+
+        /* Top Navigation Overlay */
+        .reader-nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 60px;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.9) 0%, transparent 100%);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            z-index: 100;
+            transition: transform 0.3s ease;
+        }
+
+        .reader-nav.hidden { transform: translateY(-100%); }
+
+        .nav-left { display: flex; align-items: center; gap: 15px; }
+        .back-btn { text-decoration: none; color: white; display: flex; align-items: center; font-size: 20px; }
+
+        .chapter-title { font-weight: 600; font-size: 14px; opacity: 0.9; }
+
+        /* Right Side Hover Trigger */
+        .sidebar-trigger {
+            position: fixed;
+            top: 0;
+            right: 0;
+            width: 40px;
+            height: 100vh;
+            z-index: 150;
+        }
+
+        /* Right Sidebar */
+        .sidebar {
+            position: fixed;
+            top: 0;
+            right: -320px;
+            width: 300px;
+            height: 100vh;
+            background: var(--ui-bg);
+            backdrop-filter: blur(20px);
+            z-index: 200;
+            transition: right 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            border-left: 1px solid rgba(255,255,255,0.1);
+            display: flex;
+            flex-direction: column;
+            padding: 30px 0;
+        }
+
+        .sidebar-trigger:hover + .sidebar,
+        .sidebar:hover {
+            right: 0;
+        }
+
+        .sidebar-header {
+            padding: 0 25px 20px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .sidebar-header h3 {
+            margin: 0;
+            font-size: 1.2rem;
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .sidebar-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px 0;
+        }
+
+        .sidebar-section-title {
+            padding: 10px 25px;
+            font-size: 11px;
+            text-transform: uppercase;
+            color: rgba(255,255,255,0.4);
+            letter-spacing: 1px;
+            margin-top: 10px;
+        }
+
+        .mode-toggle {
+            padding: 15px 25px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .toggle-btn {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: #ccc;
+            padding: 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+            text-align: left;
+        }
+
+        .toggle-btn.active {
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent);
+        }
+
+        .sidebar-item {
+            padding: 12px 25px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            text-decoration: none;
+            color: #ccc;
+            font-size: 14px;
+            transition: all 0.2s;
+            border-left: 3px solid transparent;
+        }
+
+        .sidebar-item:hover {
+            background: rgba(255,255,255,0.05);
+            color: white;
+            border-left-color: var(--accent);
+        }
+
+        .sidebar-item.active {
+            background: rgba(229, 9, 20, 0.1);
+            color: white;
+            border-left-color: var(--accent);
+            font-weight: 600;
+        }
+
+        .sidebar-footer {
+            padding: 20px 25px;
+            border-top: 1px solid rgba(255,255,255,0.05);
+        }
+
+        /* Main Scroll Container */
+        .manga-container {
+            max-width: 800px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            transition: all 0.3s ease;
+        }
+
+        /* Paging Mode Styles */
+        body.mode-paging {
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        body.mode-paging .manga-container {
+            max-width: 100vw;
+            height: 100vh;
+            flex-direction: row;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            background: black;
+        }
+
+        body.mode-paging .manga-page {
+            display: none;
+            max-height: 100vh;
+            width: auto;
+            max-width: 100%;
+            object-fit: contain;
+            animation: fadeIn 0.3s ease;
+        }
+
+        body.mode-paging .manga-page.current {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .manga-page {
+            width: 100%;
+            height: auto;
+            display: block;
+            margin-bottom: 0;
+            user-select: none;
+        }
+
+        /* Bottom Controls / Progress */
+        .reader-footer {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: var(--ui-bg);
+            padding: 15px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            z-index: 100;
+            border-top: 1px solid rgba(255,255,255,0.1);
+            transition: transform 0.3s ease;
+        }
+
+        .reader-footer.hidden { transform: translateY(100%); }
+
+        .progress-container {
+            flex: 1;
+            max-width: 400px;
+            height: 4px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 2px;
+            position: relative;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: var(--accent);
+            width: 0%;
+            border-radius: 2px;
+        }
+
+        .page-counter { font-size: 13px; min-width: 60px; text-align: center; }
+
+        .nav-link {
+            color: white;
+            text-decoration: none;
+            background: rgba(255,255,255,0.1);
+            padding: 8px 15px;
+            border-radius: 4px;
+            font-size: 13px;
+            transition: background 0.2s;
+        }
+        .nav-link:hover { background: rgba(255,255,255,0.2); }
+        .nav-link.disabled { opacity: 0.3; pointer-events: none; }
+
+        /* End of Chapter Screen */
+        .chapter-end {
+            padding: 100px 20px;
+            text-align: center;
+            width: 100%;
+        }
+
+        body.mode-paging .chapter-end {
+            display: none;
+        }
+        body.mode-paging .chapter-end.current {
+            display: block;
+        }
+
+        /* Custom Scrollbar for Sidebar */
+        .sidebar-content::-webkit-scrollbar { width: 4px; }
+        .sidebar-content::-webkit-scrollbar-track { background: transparent; }
+        .sidebar-content::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 10px; }
+    </style>
+</head>
+<body class="mode-scroll">
+
+    <header class="reader-nav" id="top-nav">
+        <div class="nav-left">
+            <a href="/manga" class="back-btn">✕</a>
+            <div class="info">
+                <div class="chapter-title" id="series-title">{{ series }}</div>
+                <div style="font-size: 12px; opacity: 0.6;">{{ current_chapter }}</div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Sidebar Trigger and Sidebar -->
+    <div class="sidebar-trigger"></div>
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <h3>Settings</h3>
+        </div>
+        <div class="sidebar-content">
+            <div class="sidebar-section-title">Reading Mode</div>
+            <div class="mode-toggle">
+                <button class="toggle-btn active" id="btn-scroll" onclick="setReadMode('scroll')">
+                    Vertical Scroll
+                </button>
+                <button class="toggle-btn" id="btn-paging" onclick="setReadMode('paging')">
+                    Page-by-Page (RTL)
+                </button>
+            </div>
+
+            <div class="sidebar-section-title">Chapters</div>
+            {% for ch in chapters %}
+            <a href="/manga_reader?folder={{ series }}&chapter={{ ch }}" 
+               class="sidebar-item {% if ch == current_chapter %}active{% endif %}">
+                <span>{{ ch }}</span>
+                {% if ch == current_chapter %}
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="var(--accent)"><path d="M8 5v14l11-7z"/></svg>
+                {% endif %}
+            </a>
+            {% endfor %}
+        </div>
+        <div class="sidebar-footer">
+            <a href="/manga" class="nav-link" style="display: block; text-align: center;">Exit Reader</a>
+        </div>
+    </aside>
+
+    <main class="manga-container" id="reader-container">
+        {% for img in image_names %}
+        <img class="manga-page {% if loop.first %}current{% endif %}" 
+             src="/manga_page/{{ series }}/{{ current_chapter }}/{{ img }}" 
+             loading="lazy" 
+             alt="Page {{ loop.index }}">
+        {% endfor %}
+
+        <div class="chapter-end" id="chapter-end">
+            <h2>Chapter Complete</h2>
+            <div style="margin-top: 20px; display: flex; gap: 15px; justify-content: center;">
+                {% if prev_chapter %}
+                <a href="/manga_reader?folder={{ series }}&chapter={{ prev_chapter }}" class="nav-link">Previous Chapter</a>
+                {% endif %}
+                {% if next_chapter %}
+                <a href="/manga_reader?folder={{ series }}&chapter={{ next_chapter }}" class="nav-link" style="background: var(--accent);">Next Chapter</a>
+                {% else %}
+                <a href="/manga" class="nav-link">Back to Library</a>
+                {% endif %}
+            </div>
+        </div>
+    </main>
+
+    <footer class="reader-footer" id="bottom-nav">
+        <button onclick="navigatePage(-1)" class="nav-link" id="prev-page-btn">Prev</button>
+
+        <div class="progress-container">
+            <div class="progress-bar" id="progress-bar"></div>
+        </div>
+        
+        <div class="page-counter">
+            <span id="current-page">1</span> / {{ image_names|length }}
+        </div>
+
+        <button onclick="navigatePage(1)" class="nav-link" id="next-page-btn">Next</button>
+    </footer>
+
+    <script>
+        const progressBar = document.getElementById('progress-bar');
+        const currentPageLabel = document.getElementById('current-page');
+        const pages = document.querySelectorAll('.manga-page');
+        const chapterEnd = document.getElementById('chapter-end');
+        const topNav = document.getElementById('top-nav');
+        const bottomNav = document.getElementById('bottom-nav');
+        const sidebar = document.getElementById('sidebar');
+        const seriesTitleEl = document.getElementById('series-title');
+        
+        let lastScroll = 0;
+        let readMode = 'scroll'; // 'scroll' or 'paging'
+        let currentIdx = 0;
+        const totalPages = pages.length;
+
+        // Fetch Official Title from AniList
+        async function fetchOfficialTitle(folderName) {
+            const query = `
+                query ($search: String) {
+                    Media (search: $search, type: MANGA) {
+                        title {
+                            english
+                            romaji
+                        }
+                    }
+                }
+            `;
+            const variables = { search: folderName.replace(/_/g, ' ').replace(/\./g, ' ') };
+
+            try {
+                const response = await fetch('https://graphql.anilist.co', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                    body: JSON.stringify({ query, variables })
+                });
+                const result = await response.json();
+                const title = result.data.Media.title.english || result.data.Media.title.romaji;
+                if (title) seriesTitleEl.innerText = title;
+            } catch (error) {
+                console.error("AniList Fetch Error:", error);
+            }
+        }
+
+        fetchOfficialTitle("{{ series }}");
+
+        // --- MODE SWITCH LOGIC ---
+        function setReadMode(mode) {
+            readMode = mode;
+            document.body.className = `mode-${mode}`;
+            document.getElementById('btn-scroll').classList.toggle('active', mode === 'scroll');
+            document.getElementById('btn-paging').classList.toggle('active', mode === 'paging');
+            
+            if (mode === 'scroll') {
+                window.scrollTo(0, 0);
+                updateScrollProgress();
+            } else {
+                currentIdx = 0;
+                updatePagingDisplay();
+            }
+        }
+
+        // --- PAGING LOGIC ---
+        function updatePagingDisplay() {
+            pages.forEach((p, i) => {
+                p.classList.toggle('current', i === currentIdx);
+            });
+            chapterEnd.classList.toggle('current', currentIdx === totalPages);
+            
+            const displayIdx = Math.min(currentIdx + 1, totalPages);
+            currentPageLabel.innerText = displayIdx;
+            progressBar.style.width = `${(displayIdx / totalPages) * 100}%`;
+        }
+
+        function navigatePage(dir) {
+            if (readMode === 'scroll') {
+                // In scroll mode, buttons act as ch-jump or scroll jump
+                if (dir > 0) window.scrollBy(0, window.innerHeight * 0.8);
+                else window.scrollBy(0, -window.innerHeight * 0.8);
+                return;
+            }
+            
+            // RTL Logic for Paging: Next is -1, Prev is +1 usually for manga, 
+            // but for simplicity here we keep standard dir logic
+            const newIdx = currentIdx + dir;
+            if (newIdx >= 0 && newIdx <= totalPages) {
+                currentIdx = newIdx;
+                updatePagingDisplay();
+            }
+        }
+
+        // --- SCROLL LOGIC ---
+        function updateScrollProgress() {
+            if (readMode !== 'scroll') return;
+            const totalHeight = document.documentElement.scrollHeight - window.innerHeight;
+            const progress = (window.pageYOffset / totalHeight) * 100;
+            progressBar.style.width = `${progress}%`;
+
+            let current = 1;
+            pages.forEach((page, index) => {
+                const rect = page.getBoundingClientRect();
+                if (rect.top < window.innerHeight / 2) {
+                    current = index + 1;
+                }
+            });
+            currentPageLabel.innerText = current;
+        }
+
+        window.addEventListener('scroll', () => {
+            if (readMode !== 'scroll') return;
+            updateScrollProgress();
+
+            const currentScroll = window.pageYOffset;
+            if (currentScroll > lastScroll && currentScroll > 100) {
+                topNav.classList.add('hidden');
+                bottomNav.classList.add('hidden');
+            } else {
+                topNav.classList.remove('hidden');
+                bottomNav.classList.remove('hidden');
+            }
+            lastScroll = currentScroll;
+        });
+
+        // Click regions for paging mode
+        document.body.addEventListener('click', (e) => {
+            if (sidebar.contains(e.target) || e.target.tagName === 'A' || e.target.closest('.sidebar-trigger') || e.target.closest('.nav-link') || e.target.closest('.toggle-btn')) {
+                return;
+            }
+
+            if (readMode === 'paging') {
+                const width = window.innerWidth;
+                if (e.clientX < width * 0.3) {
+                    navigatePage(-1); // Left side clicks
+                } else if (e.clientX > width * 0.7) {
+                    navigatePage(1); // Right side clicks
+                } else {
+                    topNav.classList.toggle('hidden');
+                    bottomNav.classList.toggle('hidden');
+                }
+            } else {
+                topNav.classList.toggle('hidden');
+                bottomNav.classList.toggle('hidden');
+            }
+        });
+
+        // Keyboard Support
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight') navigatePage(1);
+            if (e.key === 'ArrowLeft') navigatePage(-1);
+            if (e.key === 'Escape') {
+                topNav.classList.remove('hidden');
+                bottomNav.classList.remove('hidden');
+            }
+        });
+    </script>
+</body>
+</html>
